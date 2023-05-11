@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Domain via TG
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/usr/bin/python3 /opt/check-domain-py-bot-tg/main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
