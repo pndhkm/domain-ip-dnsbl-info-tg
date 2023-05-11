@@ -10,7 +10,7 @@ Make sure you have installed the following packages:
 - python-whois
 - dnspython
 - python-dotenv
-- python-telegram-bot==13
+- python-telegram-bot
 
 
 You can install these packages by running the following command:
@@ -20,4 +20,4 @@ pip3 install -r requirements.txt
 
 Then, rename the env-example file to .env and modify the values accordingly and create file user.txt.
 
-
+[Demo bot domain_ip_dnsbl_bot](https://t.me/domain_ip_dnsbl_bot)
