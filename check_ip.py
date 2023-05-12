@@ -1,4 +1,4 @@
-import requests, re, dns.resolver, logging, os, ipaddress
+import requests, re, dns.resolver, logging, os, ipaddress, socket
 from dotenv import load_dotenv
 from urllib.request import urlopen
 from json import load
@@ -36,6 +36,7 @@ def content_test(url, ipaddr):
     except Exception as e:
         logging.error(f'{url} - {ipaddr}: {str(e)}')
 
+
 def dns_query(ipaddr, bl, query_type):
     try:
         my_resolver = dns.resolver.Resolver()
@@ -58,25 +59,70 @@ def dns_query(ipaddr, bl, query_type):
     except Exception as e:
         logging.error(f'Error occurred while checking IP {ipaddr} against {bl} blacklist: {str(e)}')
         return False
-
-def blserver_test(message):
-    message = ""
-    bls = blserver.split(',')
-    ipaddr = get_public_ip()
-    message += f'🟢: Connected\n🔴: Not Connected\n\nHasil Koneksi:'
-    for bl in bls:
-        if dns_query(ipaddr, bl, "A") and dns_query(ipaddr, bl, "TXT"):
-            message += f'\n🟢 {bl}'
-        else:
-            message += f'\n🔴 {bl}'
     
-    message += f'\n\n<pre>Pemeriksaan ke server blacklist melalui alamat IP {ipaddr}.</pre>'
+def dns_query_tests(ipaddr, bl, query_type):
+    try:
+        my_resolver = dns.resolver.Resolver()
+        query = '.'.join(reversed(str(ipaddr).split("."))) + "." + bl
+        my_resolver.timeout = 10
+        my_resolver.lifetime = 10
+        my_resolver.query(query, query_type)
+        return True, None
+    except dns.resolver.NXDOMAIN:
+        return True, None
+    except dns.resolver.Timeout:
+        logging.error(f'Timeout querying {bl}')
+        return False, f'Timeout querying {bl}'
+    except dns.resolver.NoNameservers:
+        logging.error(f'No nameservers for {bl}')
+        return False, f'No nameservers for {bl}'
+    except dns.resolver.NoAnswer:
+        logging.error(f'No answer for {bl}')
+        return False, f'No answer for {bl}'
+    except Exception as e:
+        logging.error(f'Error occurred while checking IP {ipaddr} against {bl} blacklist: {str(e)}')
+        return False, f'Error occurred while checking IP {ipaddr} against {bl} blacklist: {str(e)}'
+
+
+def bls_test_conn():
+    try:
+        message = ""
+        bls = blserver.split(',')
+        ipaddr = get_public_ip()
+        message += f'🟢: Connected\n🔴: Not Connected\n\nHasil Koneksi:'
+        for bl in bls:
+            success, error = dns_query_tests(ipaddr, bl, "A")
+            if success:
+                success, error = dns_query_tests(ipaddr, bl, "TXT")
+            
+            if success:
+                message += f'\n🟢 {bl}'
+            else:
+                message += f'\n🔴 {bl} ({error})'
+        
+        message += f'\n\n<pre>Pemeriksaan ke server blacklist melalui alamat IP {ipaddr}.</pre>'
+
+    except Exception as e:
+        logging.error('bltest: ' + str(e))
+    
     return message
+
+def bls_list():
+    try:
+        bls = blserver.split(',')
+        message = ""
+        for bl in bls:
+            message += f'\n - {bl}'
+        return message
+
+    except Exception as e:
+        logging.error('Show blacklist servers: ' + str(e))
 
 def ip(ipaddr):
     message = ""
     BAD = 0
     GOOD = 0
+    WARN = 0
         
     try:
         if ipaddr == '':
@@ -100,19 +146,33 @@ def ip(ipaddr):
     
     bls = blserver.split(',')
     badlist = ''
+    notconn = ''
+    bltotal = len(bls)  
     
     for bl in bls:
-        if dns_query(ipaddr, bl, "A") and dns_query(ipaddr, bl, "TXT"):
-            GOOD = GOOD + 1
-            continue
-        else:
-            BAD = BAD + 1
-            badlist += "- " + bl + "\n" 
+        try:
+            if dns_query(ipaddr, bl, "A") and dns_query(ipaddr, bl, "TXT"):
+                GOOD = GOOD + 1
+                continue
+            else:
+                BAD = BAD + 1
+                badlist += f"- {bl}\n"
+        except Exception as e:
+            WARN = WARN + 1
+            notconn += f'- {bl} ({e})\n'
+            message += f'\n🔴 {bl}'
 
+    
     if BAD >= 1:
         message += f'\nAlamat IP tersebut tercatat buruk di server blacklist:\n{badlist}'
-        message += f'\n<pre>IP tercatat buruk {BAD} dari {GOOD+BAD} server blacklist. Informasi Blacklist:</pre>/blinfo'
+        message += f'\n<pre>IP tercatat buruk {BAD} dari {GOOD+BAD} server blacklist. Informasi blacklist:</pre>/blinfo'
 
+    elif WARN == bltotal:
+        message += '\nMohon maaf sepertinya ada yang tidak beres antara koneksi kami dengan server blacklist'
+        
+    elif WARN >= 1:
+        message += f'\nTidak terhubung ke server blacklist:\n{notconn}'
+        
     else:
         message += f'\n✅ Alamat IP sehat dari {GOOD+BAD} server blacklist.\n Informasi Blacklist: /blinfo'
 

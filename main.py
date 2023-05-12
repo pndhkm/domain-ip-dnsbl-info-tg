@@ -98,12 +98,15 @@ def handle_message(update, context):
                 message = "Alamat IP tidak dikenal, gunakan format alamat IP. Contoh:\n<code>8.8.8.8</code>"
             elif not is_public_ip(content):
                 message = "IP " + content + " bukan publik IP"
+                message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
             else:
                 message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
                 message = ip(content)  
                 context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
-                recheck(update, message, 'reip')
-                context.user_data['ip'] = content           
+                
+            recheck(update, message, 'reip')
+            context.user_data['ip'] = content           
+            
         else:
             text = str(update.message.text).lower()
             logging.info(f'User ({update.message.chat.id}) says: {text}')
