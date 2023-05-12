@@ -1,6 +1,6 @@
 import os,responses,logging, re
 from check_domain import domain
-from check_ip import ip, is_public_ip, blserver_test
+from check_ip import ip, is_public_ip, bls_test_conn, bls_list
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import MessageHandler,Updater, CommandHandler, CallbackQueryHandler,Filters
 from dotenv import load_dotenv
@@ -18,6 +18,15 @@ load_dotenv()
 TOKEN =  os.getenv('TOKEN')
 bl_servers = os.getenv('BLSEVER').split(',')
 admin_chat_id = int(os.getenv('ADMIN_CHAT_ID'))
+
+def check_user(userid):
+    with open('user.txt', 'r') as f:
+        users = f.read()
+    if str(userid) not in users:
+        return False
+    else:
+        return True
+        
 
 def register(update, context):
     try:
@@ -45,44 +54,31 @@ def register(update, context):
 
 def help(update, context):
     try:
-        with open('user.txt', 'r') as f:
-            users = f.read()
         id_message = update.message.chat.id
-        if str(id_message) in users:
+        if check_user(id_message) == True:
             context.bot.send_message(chat_id=update.message.chat_id, text="Untuk periksa domain atau alamat IP silahkan pilih menu <b>periksa</b> atau tekan: /check", parse_mode='html')
         else:
             context.bot.send_message(chat_id=update.message.chat_id, text="Akun kamu belum terdaftar\nkamu belum bisa menggunakan fitur ini.\n\n<b>Cara Mendaftar</b>\n1. Tekan: /register \n2. Tunggu hingga admin/bot menghubungimu\n3. Setelah itu silahkan lihat panduan: /help", parse_mode='html')
     except Exception as e:
         logging.error('Help: ' + str(e))
-
+        
 def blserver_lists(update, context):
     try:
-        with open('user.txt', 'r') as f:
-            users = f.read()
-            
         id_message = update.message.chat.id
-        if str(id_message) not in users:
+        if check_user(id_message) == False:
             context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
             context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
             return
-
-        message = ''
-        for server in bl_servers:
-            message += '\n- ' + server
-        context.bot.send_message(chat_id=update.message.chat_id, text="<b>Server Blacklists:</b>" + str(message), parse_mode='html')
+        message = bls_list()
+        context.bot.send_message(chat_id=update.message.chat_id, text="<b>Server Blacklists:</b>" + message, parse_mode='html')
     except Exception as e:
         logging.error('Show blacklist servers: ' + str(e))
 
 def handle_message(update, context):
     try:
-        with open('user.txt', 'r') as f:
-            users = f.read()
-            
-        id_message = update.message.chat.id
         content = update.message.text
-        recontent = ''
-        
-        if str(id_message) not in users:
+        id_message = update.message.chat.id
+        if check_user(id_message) == False:
             context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
             context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
             return
@@ -94,8 +90,7 @@ def handle_message(update, context):
             message = domain(content) 
             context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
             recheck(update, message, 'redomain') 
-            context.user_data['domain'] = content
-        
+            context.user_data['domain'] = content 
         
         elif context.user_data.get('state') == 'WAITING_FOR_IP':
             del context.user_data['state']
@@ -121,10 +116,8 @@ def handle_message(update, context):
 
 def check(update, context):
     try:
-        user = open('user.txt','r')
-        user = user.read()
         id_message = update.message.chat.id
-        if str(id_message) not in user:
+        if check_user(id_message) == False:
             context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
             context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
             return
@@ -212,8 +205,14 @@ def button(update, context):
 
 def blserver_tests(update, context):
     try:
+        id_message = update.message.chat.id
+        if check_user(id_message) == False:
+            context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
+            context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
+            return
+        
         message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
-        message = blserver_test(update)
+        message = bls_test_conn()
         context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
         context.bot.send_message(chat_id=update.message.chat_id, text=message, parse_mode='html')
     except Exception as e:
@@ -221,6 +220,11 @@ def blserver_tests(update, context):
 
 def blinfo(update, context):
     try:
+        id_message = update.message.chat.id
+        if check_user(id_message) == False:
+            context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
+            context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
+            return
         context.bot.send_message(chat_id=update.message.chat_id, text="Lihat daftar server blacklist: /blserver_lists\nPeriksa koneksi ke DNS server Blacklist: /blserver_tests")
     except Exception as e:
         logging.error(f'blinfo ' + str(e))
