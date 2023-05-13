@@ -1,6 +1,6 @@
 import os,responses,logging, re
 from check_domain import domain
-from check_ip import ip, is_public_ip, bls_test_conn, bls_list
+from check_ip import ip, is_public_ip, bls_list
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import MessageHandler,Updater, CommandHandler, CallbackQueryHandler,Filters
 from dotenv import load_dotenv
@@ -228,7 +228,7 @@ def blinfo(update, context):
             context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
             context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
             return
-        context.bot.send_message(chat_id=update.message.chat_id, text="Lihat daftar server blacklist: /blserver_lists\nPeriksa koneksi ke DNS server Blacklist: /blserver_tests")
+        context.bot.send_message(chat_id=update.message.chat_id, text="Lihat daftar server blacklist: /blserver_lists")
     except Exception as e:
         logging.error(f'blinfo ' + str(e))
 
@@ -239,7 +239,6 @@ dp.add_handler(CommandHandler('register', register))
 dp.add_handler(CommandHandler('check', check))
 dp.add_handler(CommandHandler('blinfo', blinfo))
 dp.add_handler(CommandHandler('blserver_lists', blserver_lists))
-dp.add_handler(CommandHandler('blserver_tests', blserver_tests))
 dp.add_handler(MessageHandler(Filters.text, handle_message))
 dp.add_handler(CallbackQueryHandler(button))    
 
