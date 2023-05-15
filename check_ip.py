@@ -21,43 +21,52 @@ def is_public_ip(ipaddr):
     except Exception as e:
         logging.error(f'{ipaddr}: {str(e)}')
 
-def content_test(url, ipaddr):
-    try:
-        response = requests.get(url)
-        html_content = response.text
-        retcode = response.status_code
-        matches = retcode == 200
-        matches = matches and re.findall(ipaddr, html_content)
-        return len(matches) == 0
-    except Exception as e:
-        logging.error(f'{url} - {ipaddr}: {str(e)}')
-
-
-def dns_query(ipaddr, bl, query_type):
+def dns_query(ipaddr, bl):
+    STATUS = ''
+    ERR = ''
     try:
         my_resolver = dns.resolver.Resolver()
         query = '.'.join(reversed(str(ipaddr).split("."))) + "." + bl
-        my_resolver.timeout = 10
-        my_resolver.lifetime = 10
-        answers = my_resolver.query(query, query_type)
+        my_resolver.timeout = 1
+        my_resolver.lifetime = 1
+        answers = my_resolver.query(query, "A")
+        answer_txt = my_resolver.query(query, "TXT")
+
         if answers:
-            return True
-        else:
-            return False
-    except dns.resolver.NXDOMAIN:
-        return False
-    except dns.resolver.Timeout:
-        logging.warning('- Timeout querying ')
-        return False
-    except dns.resolver.NoNameservers:
-        logging.warning('- No nameservers ')
-        return False
-    except dns.resolver.NoAnswer:
-        logging.warning('- No answer ')
-        return False
+            STATUS = 'BAD'
+            ERR = answer_txt[0]
+            return STATUS, ERR
+
+    except dns.resolver.NXDOMAIN as e:
+        print(f'{e} dns.resolver.NXDOMAIN')
+        ERR = "NXDOMAIN"
+        STATUS = 'NOTCONN'
+        return STATUS, ERR
+    except dns.resolver.Timeout as e:
+        logging.warning('- Timeout querying {e}')
+        STATUS = 'NOTCONN'
+        ERR = 'Timeout querying'
+        print(f'{e} Timeout querying {e}')
+        return STATUS, ERR
+    except dns.resolver.NoNameservers as e:
+        logging.warning('- No nameservers {e}')
+        STATUS = 'NOTCONN'
+        ERR = 'No nameservers'
+        print(f'{e} No nameservers ')
+        return STATUS, ERR
+    except dns.resolver.NoAnswer as e:
+        logging.warning(f'- No answer {e}')
+        STATUS = 'GOOD'
+        ERR = 'No answer'
+        print(f'{e} No answer ')
+        return STATUS, ERR
     except Exception as e:
-        logging.error(f'Error occurred while checking IP {ipaddr} against {bl} blacklist: {str(e)}')
-        return False
+        logging.warning(f'- No answer {e}')
+        STATUS = 'NOTCONN'
+        ERR = 'No answer'
+        print(f'{e} No answer ')
+        return STATUS, ERR
+
     
 def bls_list():
     try:
@@ -84,10 +93,10 @@ def ip(ipaddr):
         
         res = urlopen(url)
         data = load(res)
-        message += "{:<15}: <code>{}</code>\n".format('Alamat IP', data['ip'])
-        message += "{:<12}: <code>{}</code>\n".format('Nama Host', data['hostname'])
-        message += "{:<12}: <code>{}</code>\n".format('AS Number', data['org'])
-        message += "{:<17}: <code>{}, {}</code>\n".format('Negara', data['country'], data['city'])
+        message += "{:<12}: <code>{}</code>\n".format('IP Address', data['ip'])
+        message += "{:<11}: <code>{}</code>\n".format('Hostname', data['hostname'])
+        message += "{:<11}: <code>{}</code>\n".format('AS Number', data['org'])
+        message += "{:<15}: <code>{}, {}</code>\n".format('Country', data['country'], data['city'])
 
         # Remove readme
         if 'readme' in data:
@@ -99,31 +108,30 @@ def ip(ipaddr):
     bls = blserver.split(',')
     badlist = ''
     notconn = ''
-    bltotal = len(bls)  
     
     for bl in bls:
-        if not dns_query(ipaddr, bl, "A") or not dns_query(ipaddr, bl, "TXT"):
-            GOOD = GOOD + 1
-        elif dns_query(ipaddr, bl, "A") or dns_query(ipaddr, bl, "TXT"):
-            BAD = BAD + 1
-            badlist += f"- {bl}\n"
-        else:
-            WARN = WARN + 1
-            notconn += f'- {bl} ({error})\n'
-            message += f'\n🔴 {bl}'
-
-    
+        status, err = dns_query(ipaddr, bl)
+        if status:
+            status, err = dns_query(ipaddr, bl)
+            
+        if status == "GOOD":
+            GOOD += 1  
+        elif status == "BAD":
+            BAD += 1
+            badlist += f'- {bl}\n' + str(err) + '\n\n'
+        elif status == "NOTCONN":
+            if err == "NXDOMAIN":
+                GOOD += 1
+            else:
+                WARN += 1
+                notconn += f'\n- {bl} - {err}\n'
+        
     if BAD >= 1:
-        message += f'\nAlamat IP tersebut tercatat buruk di server blacklist:\n{badlist}'
-        message += f'\n<pre>IP tercatat buruk {BAD} dari {GOOD+BAD} server blacklist. Daftar server blacklist:</pre>/blserver_lists'
-
-    elif WARN == bltotal:
-        message += '\nMohon maaf sepertinya ada yang tidak beres antara koneksi kami dengan server blacklist'
-        
-    elif WARN >= 1:
-        message += f'\nTidak terhubung ke server blacklist:\n{notconn}'
-        
+        message += f'\n<b>Bloked:</b>\n{badlist}'
+        if WARN >= 1:
+            message += f'<b>Connection Failed:</b>{notconn}'
+        message += f'\n🟢 {GOOD} 🔴 {BAD} 🟠 {WARN}\nList of blacklist servers: /blserver_lists'
     else:
-        message += f'\n✅ Alamat IP sehat dari {GOOD+BAD} server blacklist.\n Daftar server blacklist: /blserver_lists'
+        message += f'\n✅ Healthy IP addresses from {GOOD+BAD} blacklist servers.\nList of blacklist servers: /blserver_lists'
 
     return message

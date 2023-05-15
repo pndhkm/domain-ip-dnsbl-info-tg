@@ -1,4 +1,4 @@
-import os,responses,logging, re
+import os,responses,logging, re, time
 from check_domain import domain
 from check_ip import ip, is_public_ip, bls_list
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -95,12 +95,21 @@ def handle_message(update, context):
         elif context.user_data.get('state') == 'WAITING_FOR_IP':
             del context.user_data['state']
             if not re.match(r'^(\d{1,3}\.){3}\d{1,3}$', content):
-                message = "Alamat IP tidak dikenal, gunakan format alamat IP. Contoh:\n<code>8.8.8.8</code>"
+                message = "Alamat IP tidak dikenal, gunakan format alamat IP. Contoh:\n8.8.8.8"
+                message_id = context.bot.send_message(chat_id=update.message.chat_id, text=message).message_id
+                check(update, message)
+                time.sleep(20)
+                context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
+                return
             elif not is_public_ip(content):
-                message = "IP " + content + " bukan publik IP"
-                message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
+                message = f"Mohon maaf, IP {content} bukan publik IP"
+                message_id = context.bot.send_message(chat_id=update.message.chat_id, text=message,parse_mode='html').message_id
+                check(update, message)
+                time.sleep(20)
+                context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
+                return
             else:
-                message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
+                message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu", parse_mode='html').message_id
                 message = ip(content)  
                 context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
                 
@@ -181,13 +190,13 @@ def button(update, context):
                 message = domain(context.user_data['domain'])
                 recheck(query, message, 'redomain')
             except:
-                context.bot.send_message(chat_id=query.message.chat_id, text='Mohon maaf aku gak memhami permintaan itu, silahkan baca panduan /help')
+                context.bot.send_message(chat_id=query.message.chat_id, text='Mohon maaf aku gak memahami permintaan itu, silahkan baca panduan /help')
         elif choice == 'reip':
             try:
                 message = ip(context.user_data['ip'])
                 recheck(query, message, 'reip')
             except:
-                context.bot.send_message(chat_id=query.message.chat_id, text='Mohon maaf aku gak memhami permintaan itu, silahkan baca panduan /help')
+                context.bot.send_message(chat_id=query.message.chat_id, text='Mohon maaf aku gak memahami permintaan itu, silahkan baca panduan /help')
         elif choice == 'backtomenu':
             keyboard = [
                 [
@@ -205,21 +214,6 @@ def button(update, context):
 
     except Exception as e:
         logging.error(f'Button ' + str(e))
-
-def blserver_tests(update, context):
-    try:
-        id_message = update.message.chat.id
-        if check_user(id_message) == False:
-            context.bot.send_message(chat_id=update.message.chat_id, text="Maaf,aku gakenal sama kamu")
-            context.bot.send_message(chat_id=update.message.chat_id, text="lihat panduan : /help")
-            return
-        
-        message_id = context.bot.send_message(chat_id=update.message.chat_id, text="Baik, mohon ditunggu").message_id
-        message = bls_test_conn()
-        context.bot.delete_message(chat_id=update.message.chat_id, message_id=message_id)
-        context.bot.send_message(chat_id=update.message.chat_id, text=message, parse_mode='html')
-    except Exception as e:
-        logging.error(f'server blstatus ' + str(e))
 
 def blinfo(update, context):
     try:
